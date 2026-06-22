@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { complete, aiConfigured } from '@/lib/ai'
+import { rateLimit, getIp } from '@/lib/ratelimit'
 
 export async function POST(req: NextRequest) {
   try {
+    if (!rateLimit(getIp(req))) {
+      return NextResponse.json({ error: 'Слишком много запросов. Подождите минуту.' }, { status: 429 })
+    }
     const { goal, weight, height, age, gender, budget, restrictions, days = 7 } = await req.json()
     if (!goal || !weight) {
       return NextResponse.json({ error: 'Укажите цель и вес' }, { status: 400 })
@@ -36,7 +40,8 @@ export async function POST(req: NextRequest) {
     const raw = await complete({ system, user, json: true, temperature: 0.7 })
     const data = JSON.parse(raw || '{}')
     return NextResponse.json(data)
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Ошибка' }, { status: 500 })
+  } catch (err) {
+    console.error('plan error:', err)
+    return NextResponse.json({ error: 'Ошибка обработки. Попробуйте ещё раз.' }, { status: 500 })
   }
 }

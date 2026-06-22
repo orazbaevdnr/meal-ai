@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getGroq, MODEL } from '@/lib/groq'
+import { complete, aiConfigured } from '@/lib/ai'
 
 export async function POST(req: NextRequest) {
   try {
@@ -7,8 +7,8 @@ export async function POST(req: NextRequest) {
     if (!goal || !weight) {
       return NextResponse.json({ error: 'Укажите цель и вес' }, { status: 400 })
     }
-    if (!process.env.GROQ_API_KEY) {
-      return NextResponse.json({ error: 'Сервис не настроен (нет GROQ_API_KEY)' }, { status: 503 })
+    if (!aiConfigured()) {
+      return NextResponse.json({ error: 'Сервис не настроен (нет AI-ключа)' }, { status: 503 })
     }
 
     const system = `Ты — диетолог. Составь план питания на ${days} дней.
@@ -33,17 +33,8 @@ export async function POST(req: NextRequest) {
 Бюджет: ${budget || 'средний'}
 Ограничения/непереносимости: ${restrictions || 'нет'}`
 
-    const completion = await getGroq().chat.completions.create({
-      model: MODEL,
-      temperature: 0.7,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
-    })
-
-    const data = JSON.parse(completion.choices[0]?.message?.content || '{}')
+    const raw = await complete({ system, user, json: true, temperature: 0.7 })
+    const data = JSON.parse(raw || '{}')
     return NextResponse.json(data)
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Ошибка' }, { status: 500 })
